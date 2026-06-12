@@ -1,0 +1,82 @@
+services:
+  # ── Sample app that generates metrics ──────────────────────────────────────
+  sample-app:
+    build: ./sample-app
+    container_name: sample-app
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+    restart: unless-stopped
+    labels:
+      - "ai-ops.managed=true"
+      - "ai-ops.service=sample-app"
+
+  # ── AI Ops Agent ───────────────────────────────────────────────────────────
+  agent:
+    build: ./agent
+    container_name: ai-ops-agent
+    ports:
+      - "3000:3000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.8}
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # Docker SDK access
+      - ./data:/app/data                              # Incident log persistence
+    depends_on:
+      - prometheus
+      - sample-app
+    restart: unless-stopped
+
+  # ── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"        # Allow config reload via API
+      - "--storage.tsdb.retention.time=7d"
+    restart: unless-stopped
+
+  # ── Alertmanager ───────────────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    restart: unless-stopped
+
+  # ── Grafana (optional dashboard) ───────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:

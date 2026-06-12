@@ -1,0 +1,39 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ["alertname", "service"]
+  group_wait: 10s          # Wait to batch related alerts
+  group_interval: 30s
+  repeat_interval: 1h      # Don't spam the agent for the same alert
+  receiver: "ai-ops-agent"
+
+  routes:
+    # Critical alerts: fire immediately, no batching delay
+    - matchers:
+        - severity="critical"
+      group_wait: 5s
+      receiver: "ai-ops-agent"
+
+    # Warnings: slight delay to avoid noise
+    - matchers:
+        - severity="warning"
+      group_wait: 30s
+      receiver: "ai-ops-agent"
+
+receivers:
+  - name: "ai-ops-agent"
+    webhook_configs:
+      - url: "http://agent:3000/webhook/alert"
+        send_resolved: true           # Notify agent when alert clears
+        http_config:
+          follow_redirects: true
+        max_alerts: 10               # Cap payload size
+
+inhibit_rules:
+  # If AppDown fires, suppress all other alerts for same service
+  - source_matchers:
+      - alertname="AppDown"
+    target_matchers:
+      - service="sample-app"
+    equal: ["service"]
