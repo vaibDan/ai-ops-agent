@@ -1,6 +1,6 @@
 import express from "express";
 import { alertRouter } from "./routes/webhook.js";
-import { incidentsRouter } from "./routes/incidents.js";
+import { incidentsRouter } from "./route/incidents.js";
 import { logger } from "./utils/logger.js";
 import { register } from "prom-client";
 
@@ -46,6 +46,6 @@ app.listen(PORT, () => {
   logger.info(`Prometheus URL: ${process.env.PROMETHEUS_URL || "http://prometheus:9090"}`);
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    logger.error("ANTHROPIC_API_KEY is not set — Claude calls will fail");
+    logger.error("GEMINI_API_KEY is not set — Gemini calls will fail");
   }
 });
