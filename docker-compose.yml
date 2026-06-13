@@ -19,7 +19,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GOOGLE_API_KEY}
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
       - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.8}
       - PROMETHEUS_URL=http://prometheus:9090

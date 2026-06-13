@@ -65,10 +65,10 @@ async function processAlert(alert: Alert): Promise<void> {
     };
 
     // ── 2. DIAGNOSE: call Claude ───────────────────────────────────────────
-    logger.info("Step 2/4 — Calling Claude for diagnosis", { incidentId });
+    logger.info("Step 2/4 — Calling Gemini for diagnosis", { incidentId });
     const diagnosis = await diagnose(ctx);
 
-    logger.info("Claude diagnosis received", {
+    logger.info("Gemini diagnosis received", {
       incidentId,
       action: diagnosis.action,
       confidence: diagnosis.confidence,

@@ -3,7 +3,7 @@ import { ClaudeDiagnosis, OpsContext } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash"; 
 
 // ── System prompt ──────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an expert SRE (Site Reliability Engineer) and autonomous ops agent.
