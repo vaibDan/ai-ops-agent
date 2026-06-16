@@ -1,0 +1,49 @@
+# k8s/sample-app/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app
+  namespace: ai-ops
+  labels:
+    app: sample-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+      annotations:
+        # Tells Prometheus to scrape this pod automatically
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: sample-app
+          image: sample-app:local     # built into kind below
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          ports:
+            - containerPort: 3001
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 5

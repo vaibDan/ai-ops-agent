@@ -1,0 +1,171 @@
+import * as k8s from "@kubernetes/client-node";
+import { logger } from "../utils/logger.js";
+
+const kc = new k8s.KubeConfig();
+
+if (process.env.KUBERNETES_SERVICE_HOST) {
+    kc.loadFromCluster();
+} else {
+    kc.loadFromDefault();
+}
+
+// Monkey-patch: override the fetch used by the SDK to fix PATCH Content-Type
+// This is just a quick workaround until the SDK supports setting the correct Content-Type for strategic merge patches.
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (input: RequestInfo | URL | Request, init?: RequestInit) => {
+    if (init?.method?.toUpperCase() === "PATCH") {
+        init.headers = {
+            ...(init.headers as Record<string, string>),
+            "Content-Type": "application/strategic-merge-patch+json",
+        };
+    }
+    return originalFetch(input, init);
+};
+
+
+const appsV1 = kc.makeApiClient(k8s.AppsV1Api);
+const coreV1 = kc.makeApiClient(k8s.CoreV1Api);
+
+const NAMESPACE = process.env.NAMESPACE || "ai-ops";
+
+// ── Rolling restart (equivalent to: kubectl rollout restart deployment/<name>) ──
+// export async function restartDeployment(service: string): Promise<string> {
+//     await appsV1.patchNamespacedDeployment({
+//         name: service,
+//         namespace: NAMESPACE,
+//         body: {
+//             spec: {
+//                 template: {
+//                     metadata: {
+//                         annotations: {
+//                             "kubectl.kubernetes.io/restartedAt": new Date().toISOString(),
+//                         },
+//                     },
+//                 },
+//             },
+//         },
+//     });
+
+//     logger.info("Rolling restart triggered", { service, NAMESPACE });
+//     return `Rolling restart triggered for deployment/${service} in ${NAMESPACE}`;
+// }
+
+export async function restartDeployment(
+    service: string
+): Promise<string> {
+
+    await appsV1.patchNamespacedDeployment({
+        name: service,
+        namespace: NAMESPACE,
+        body: [
+            {
+                op: "add",
+                path: "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
+                value: new Date().toISOString(),
+            },
+        ],
+    });
+
+    logger.info("Rolling restart triggered", {
+        service,
+        NAMESPACE,
+    });
+
+    return `Rolling restart triggered for deployment/${service} in ${NAMESPACE}`;
+}
+
+
+// ── Scale replicas ────────────────────────────────────────────────────────────
+export async function scaleDeployment(
+    service: string,
+    replicas: number
+): Promise<string> {
+    await appsV1.patchNamespacedDeployment({
+        name: service,
+        namespace: NAMESPACE,
+        body: { spec: { replicas } },
+    });
+
+    logger.info("Deployment scaled", { service, replicas, NAMESPACE });
+    return `Scaled deployment/${service} to ${replicas} replicas in ${NAMESPACE}`;
+}
+
+// ── Rollback to a specific image tag ─────────────────────────────────────────
+export async function rollbackDeployment(
+    service: string,
+    imageTag: string
+): Promise<string> {
+    await appsV1.patchNamespacedDeployment({
+        name: service,
+        namespace: NAMESPACE,
+        body: {
+            spec: {
+                template: {
+                    spec: {
+                        containers: [{ name: service, image: imageTag }],
+                    },
+                },
+            },
+        },
+    });
+
+    logger.info("Deployment rolled back", { service, imageTag });
+    return `Rolled back deployment/${service} to image ${imageTag}`;
+}
+
+// ── Fetch pod logs for a deployment ──────────────────────────────────────────
+export async function getPodLogs(
+    service: string,
+    lines = 50
+): Promise<string[]> {
+    try {
+        const podList = await coreV1.listNamespacedPod({
+            namespace: NAMESPACE,
+            labelSelector: `app=${service}`,
+        });
+
+        const pods = podList.items;
+        if (pods.length === 0) {
+            return [`[no pods found for app=${service} in ${NAMESPACE}]`];
+        }
+
+        const pod =
+            pods.find((p) => p.status?.phase === "Running") ?? pods[0];
+        const podName = pod.metadata?.name ?? "";
+        const containerName = pod.spec?.containers[0]?.name ?? service;
+
+        const logResponse = await coreV1.readNamespacedPodLog({
+            name: podName,
+            namespace: NAMESPACE,
+            container: containerName,
+            tailLines: lines,
+        });
+
+        return String(logResponse)
+            .split("\n")
+            .filter(Boolean)
+            .slice(-lines);
+    } catch (err) {
+        logger.warn("Failed to fetch pod logs", { service, err: String(err) });
+        return [`[log fetch failed: ${String(err)}]`];
+    }
+}
+
+// ── List all deployments in the namespace ─────────────────────────────────────
+export async function listManagedDeployments(): Promise<
+    Array<{ name: string; replicas: number; ready: number; image: string }>
+> {
+    const list = await appsV1.listNamespacedDeployment({ namespace: NAMESPACE });
+    return list.items.map((d) => ({
+        name: d.metadata?.name ?? "",
+        replicas: d.spec?.replicas ?? 0,
+        ready: d.status?.readyReplicas ?? 0,
+        image: d.spec?.template.spec?.containers[0]?.image ?? "",
+    }));
+}
+
+// ── Aliases so opsLoop.ts import line stays the same ──────────────────────────
+export const restartContainer = restartDeployment;
+export const getContainerLogs = getPodLogs;
+export const scaleUp = (service: string, replicas: number) =>
+    scaleDeployment(service, replicas);

@@ -1,6 +1,6 @@
 import { Alert, AlertmanagerPayload, IncidentRecord, OpsContext } from "../types/index.js";
 import { fetchMetricsSnapshot } from "./prometheus.js";
-import { getContainerLogs, restartContainer, rollbackContainer, scaleUp } from "./docker.js";
+import { getPodLogs as getContainerLogs, restartDeployment as restartContainer, rollbackDeployment as rollbackContainer, scaleDeployment as scaleUp } from "./kubernetes.js";
 import { diagnose, generatePostMortem } from "./agent.js";
 import { escalate } from "./escalation.js";
 import { saveIncident, generateIncidentId } from "./incidentLog.js";

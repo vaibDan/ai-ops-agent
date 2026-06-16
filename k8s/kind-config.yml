@@ -1,0 +1,19 @@
+# kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ai-ops
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30000   # agent NodePort
+        hostPort: 3000
+      - containerPort: 30001   # sample-app NodePort
+        hostPort: 3001
+      - containerPort: 30090   # Prometheus NodePort
+        hostPort: 9090
+      - containerPort: 30093   # Alertmanager NodePort
+        hostPort: 9093
+      - containerPort: 30302   # Grafana NodePort
+        hostPort: 3002
+  - role: worker
+  - role: worker

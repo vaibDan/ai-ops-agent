@@ -1,0 +1,65 @@
+# values.yaml — kube-prometheus-stack
+#
+# Install with:
+#   helm install monitoring prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring --create-namespace \
+#     -f values.yaml
+#
+# Upgrade with:
+#   helm upgrade monitoring prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring \
+#     -f values.yaml
+
+default_rules:
+  rules:
+    infoInhibitor: false # Don't pass the "info" alert level to Alertmanager, since the agent doesn't need it
+
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      # Default receiver is "null" — most cluster-infrastructure alerts
+      # (kube-proxy, etcd, node-exporter, scheduler, etc.) end up here
+      # and are silently dropped. Only alerts matching the sub-route
+      # below get sent to the AI Ops Agent.
+      receiver: "null"
+      group_by: ["alertname", "service"]
+      group_wait: 10s
+      group_interval: 30s
+      repeat_interval: 1h
+      routes:
+        # Only alerts from our application namespace (ai-ops) go to the agent.
+        # This is where your sample-app alert rules live (HighErrorRate,
+        # HighCpuUsage, AppDown, HighLatency, ErrorSpike).
+        - receiver: ai-ops-agent
+          matchers:
+            - namespace = "ai-ops"
+          continue: false
+    receivers:
+      - name: "null"
+      - name: ai-ops-agent
+        webhook_configs:
+          - url: "http://ai-ops-agent-service.ai-ops.svc.cluster.local:3000/webhook/alert"
+            send_resolved: true
+
+  service:
+    type: NodePort
+    nodePort: 30093
+
+grafana:
+  service:
+    type: NodePort
+    nodePort: 30302
+
+prometheus:
+  service:
+    type: NodePort
+    nodePort: 30090
+
+  prometheusSpec:
+    # Allows Prometheus to pick up PodMonitor/PrometheusRule resources
+    # from any namespace, not just the monitoring namespace.
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
