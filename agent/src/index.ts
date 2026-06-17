@@ -45,7 +45,7 @@ app.listen(PORT, () => {
   logger.info(`Confidence threshold: ${process.env.CONFIDENCE_THRESHOLD || "0.8"}`);
   logger.info(`Prometheus URL: ${process.env.PROMETHEUS_URL || "http://prometheus:9090"}`);
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    logger.error("GEMINI_API_KEY is not set — Gemini calls will fail");
+  if (!process.env.GOOGLE_API_KEY) {
+    logger.error("GOOGLE_API_KEY is not set — Google calls will fail");
   }
 });
