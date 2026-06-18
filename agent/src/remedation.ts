@@ -2,7 +2,7 @@ import {
     restartDeployment,
     scaleDeployment,
     rollbackDeployment,
-} from "../agent/src/services/kubernetes";
+} from "./services/kubernetes";
 
 async function main() {
     try {

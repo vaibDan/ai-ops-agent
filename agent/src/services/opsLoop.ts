@@ -64,7 +64,7 @@ async function processAlert(alert: Alert): Promise<void> {
       recentLogs,
     };
 
-    // ── 2. DIAGNOSE: call Claude ───────────────────────────────────────────
+    // ── 2. DIAGNOSE: call Gemini ───────────────────────────────────────────
     logger.info("Step 2/4 — Calling Gemini for diagnosis", { incidentId });
     const diagnosis = await diagnose(ctx);
 
