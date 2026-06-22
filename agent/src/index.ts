@@ -49,3 +49,19 @@ app.listen(PORT, () => {
     logger.error("GOOGLE_API_KEY is not set — Google calls will fail");
   }
 });
+
+
+// ── Graceful shutdown ──────────────────────────────────────────────────────
+import { closePool } from "./services/incidentLog.js";
+
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received — closing Postgres pool");
+  await closePool();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  logger.info("SIGINT received — closing Postgres pool");
+  await closePool();
+  process.exit(0);
+});

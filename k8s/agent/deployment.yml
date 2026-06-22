@@ -57,6 +57,8 @@ spec:
               value: "1"
             - name: ALERT_COOLDOWN_MS
               value: "300000"   # 5 minutes
+            - name: DATABASE_URL
+              value: "postgresql://ai_ops:ai_ops_secret@host.docker.internal:5432/ai_ops"
           volumeMounts:
             - name: incident-data
               mountPath: /app/data
