@@ -87,3 +87,25 @@ spec:
           annotations:
             summary: "Error spike detected (test trigger)"
             description: "Manual spike was injected via /spike endpoint"
+
+        # ── Pod crash loop ───────────────────────────────────────────────
+        # kube_pod_container_status_restarts_total is provided by
+        # kube-state-metrics (installed by kube-prometheus-stack).
+        # Fires when any sample-app pod has restarted more than 3 times
+        # in the last 10 minutes — a clear CrashLoopBackOff signal.
+        - alert: PodCrashLooping
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="ai-ops",
+                pod=~"sample-app.*"
+              }[10m]
+            ) > 3
+          for: 0s
+          labels:
+            severity: critical
+            service: sample-app
+            action_hint: rollback_or_restart
+          annotations:
+            summary: "sample-app pod is crash looping"
+            description: "Pod {{ $labels.pod }} has restarted {{ $value | humanize }} times in the last 10 minutes"

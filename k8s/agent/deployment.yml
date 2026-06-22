@@ -34,14 +34,29 @@ spec:
                 secretKeyRef:
                   name: ai-ops-secrets
                   key: google-api-key
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-ops-secrets
+                  key: openrouter-api-key
+            - name: OPENROUTER_MODEL
+              value: "openrouter/owl-alpha"
+            - name: GEMINI_MODEL
+              value: "gemini-3.1-flash-lite"
+            - name: GEMINI_MIN_INTERVAL_MS
+              value: "6000"
             - name: PROMETHEUS_URL
-              value: "http://monitoring-kube-prometheus-prometheus.ai-ops.svc.cluster.local:9090"
+              value: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
             - name: NAMESPACE
               value: "ai-ops"
             - name: CONFIDENCE_THRESHOLD
               value: "0.8"
             - name: LOG_LEVEL
               value: "info"
+            - name: GEMINI_MAX_RETRIES
+              value: "1"
+            - name: ALERT_COOLDOWN_MS
+              value: "300000"   # 5 minutes
           volumeMounts:
             - name: incident-data
               mountPath: /app/data

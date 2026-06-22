@@ -138,3 +138,46 @@ export const restartContainer = restartDeployment;
 export const getContainerLogs = getPodLogs;
 export const scaleUp = (service: string, replicas: number) =>
     scaleDeployment(service, replicas);
+
+
+// / ── Pod restart info — used for PodCrashLooping diagnosis ─────────────────
+// Returns per-pod restart counts and last termination reason/message.
+// This is the critical context Gemini needs to distinguish:
+//   OOMKilled    → scale up memory or fix leak
+//   Error (exit 1) → bad config, missing env var, or bad image
+//   StartError   → image pull failed or entrypoint not found
+export interface PodRestartInfo {
+    podName: string;
+    restartCount: number;
+    lastState: string;       // OOMKilled | Error | Completed | StartError
+    lastExitCode: number;
+    lastReason: string;
+    lastMessage: string;
+}
+
+export async function getPodRestartInfo(
+    service: string
+): Promise<PodRestartInfo[]> {
+    try {
+        const podList = await coreV1.listNamespacedPod({
+            namespace: NAMESPACE,
+            labelSelector: `app=${service}`,
+        });
+
+        return podList.items.map((pod: k8s.V1Pod) => {
+            const cs = pod.status?.containerStatuses?.[0];
+            const last = cs?.lastState?.terminated;
+            return {
+                podName: pod.metadata?.name ?? "unknown",
+                restartCount: cs?.restartCount ?? 0,
+                lastState: last?.reason ?? "Unknown",
+                lastExitCode: last?.exitCode ?? -1,
+                lastReason: last?.reason ?? "Unknown",
+                lastMessage: last?.message ?? "",
+            };
+        });
+    } catch (err) {
+        logger.warn("Failed to fetch pod restart info", { service, err: String(err) });
+        return [];
+    }
+}
