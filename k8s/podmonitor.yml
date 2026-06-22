@@ -1,0 +1,50 @@
+# PodMonitor tells the Prometheus Operator to discover and scrape pods
+# matching the selector. This is the Kubernetes-native replacement for
+# static_configs in prometheus.yml.
+#
+# IMPORTANT: kube-prometheus-stack's Prometheus only watches PodMonitors
+# that match its `podMonitorSelector`. By default this selector is empty
+# (matches everything in all namespaces) UNLESS you set
+# podMonitorSelectorNilUsesHelmValues=true at install time, in which case
+# it only watches PodMonitors with label `release: <helm-release-name>`.
+#
+# To be safe, this manifest includes that label. If your Helm release is
+# not named "monitoring", change the label value below to match.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: sample-app
+  namespace: ai-ops
+  labels:
+    release: monitoring   # <-- change to your helm release name if different
+spec:
+  selector:
+    matchLabels:
+      app: sample-app
+  namespaceSelector:
+    matchNames:
+      - ai-ops
+  podMetricsEndpoints:
+    - port: http          # must match the named port in the pod spec
+      path: /metrics
+      interval: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ai-ops-agent
+  namespace: ai-ops
+  labels:
+    release: monitoring   # <-- change to your helm release name if different
+spec:
+  selector:
+    matchLabels:
+      app: ai-ops-agent
+  namespaceSelector:
+    matchNames:
+      - ai-ops
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

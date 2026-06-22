@@ -1,0 +1,111 @@
+# PrometheusRule is the Kubernetes-native replacement for mounting
+# alert.rules.yml as a ConfigMap. The Prometheus Operator watches for
+# PrometheusRule objects matching its `ruleSelector` and automatically
+# loads them into Prometheus's rule_files — no restart or reload needed.
+#
+# Same label caveat as PodMonitor: kube-prometheus-stack's default
+# ruleSelector looks for label `release: <helm-release-name>`.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-ops-alert-rules
+  namespace: ai-ops
+  labels:
+    release: monitoring   # <-- change to your helm release name if different
+spec:
+  groups:
+    - name: app_alerts
+      interval: 15s
+      rules:
+        # ── High HTTP error rate ─────────────────────────────────────────
+        - alert: HighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5..", namespace="ai-ops"}[2m]))
+              /
+              sum(rate(http_requests_total{namespace="ai-ops"}[2m]))
+            ) > 0.1
+          for: 1m
+          labels:
+            severity: critical
+            service: sample-app
+            action_hint: restart_or_rollback
+          annotations:
+            summary: "High error rate on sample-app"
+            description: "Error rate is {{ $value | humanizePercentage }} over the last 2 minutes"
+
+        # ── High CPU usage ───────────────────────────────────────────────
+        - alert: HighCpuUsage
+          expr: |
+            sum(rate(process_cpu_seconds_total{namespace="ai-ops", pod=~"sample-app.*"}[2m])) > 0.5
+          for: 2m
+          labels:
+            severity: warning
+            service: sample-app
+            action_hint: scale_up
+          annotations:
+            summary: "High CPU on sample-app"
+            description: "CPU usage rate is {{ $value }} cores"
+
+        # ── App completely down ──────────────────────────────────────────
+        - alert: AppDown
+          expr: |
+            up{namespace="ai-ops", pod=~"sample-app.*"} == 0
+          for: 30s
+          labels:
+            severity: critical
+            service: sample-app
+            action_hint: restart
+          annotations:
+            summary: "sample-app is DOWN"
+            description: "Prometheus cannot scrape sample-app — it may be crashed"
+
+        # ── High request latency ─────────────────────────────────────────
+        - alert: HighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{namespace="ai-ops"}[5m])) by (le)
+            ) > 2
+          for: 2m
+          labels:
+            severity: warning
+            service: sample-app
+            action_hint: scale_up
+          annotations:
+            summary: "High p95 latency on sample-app"
+            description: "p95 latency is {{ $value | humanizeDuration }}"
+
+        # ── Simulated spike trigger (for testing) ─────────────────────────
+        - alert: ErrorSpike
+          expr: app_error_spike{namespace="ai-ops"} == 1
+          for: 0s
+          labels:
+            severity: critical
+            service: sample-app
+            action_hint: restart_or_rollback
+          annotations:
+            summary: "Error spike detected (test trigger)"
+            description: "Manual spike was injected via /spike endpoint"
+
+        # ── Pod crash loop ───────────────────────────────────────────────
+        # kube_pod_container_status_restarts_total is provided by
+        # kube-state-metrics (installed by kube-prometheus-stack).
+        # Fires when any sample-app pod has restarted more than 3 times
+        # in the last 10 minutes — a clear CrashLoopBackOff signal.
+        - alert: PodCrashLooping
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="ai-ops",
+                pod=~"sample-app.*"
+              }[10m]
+            ) > 3
+          for: 0s
+          labels:
+            severity: critical
+            service: sample-app
+            action_hint: rollback_or_restart
+          annotations:
+            summary: "sample-app pod is crash looping"
+            description: "Pod {{ $labels.pod }} has restarted {{ $value | humanize }} times in the last 10 minutes"

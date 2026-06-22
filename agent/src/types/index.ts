@@ -29,6 +29,7 @@ export interface MetricsSnapshot {
   p95Latency: number | null;      // seconds
   cpuUsage: number | null;        // raw process_cpu_seconds_total
   appUp: boolean;
+  restartCount: number | null; 
   queriedAt: string;
 }
 

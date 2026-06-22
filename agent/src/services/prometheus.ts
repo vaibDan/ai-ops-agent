@@ -2,6 +2,7 @@ import { MetricsSnapshot } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL || "http://prometheus:9090";
+const NAMESPACE = process.env.NAMESPACE || "ai-ops";
 
 async function queryInstant(expr: string): Promise<number | null> {
   try {
@@ -21,17 +22,31 @@ async function queryInstant(expr: string): Promise<number | null> {
 }
 
 export async function fetchMetricsSnapshot(): Promise<MetricsSnapshot> {
-  const [errorRate, requestRate, p95Latency, cpuUsage, appUpRaw] =
+  const [errorRate, requestRate, p95Latency, cpuUsage, appUpRaw, restartCount] =
     await Promise.all([
       queryInstant(
-        `sum(rate(http_requests_total{status=~"5.."}[2m])) / sum(rate(http_requests_total[2m]))`
+        `sum(rate(http_requests_total{status=~"5..",namespace="${NAMESPACE}"}[2m]))
+        / sum(rate(http_requests_total{namespace="${NAMESPACE}"}[2m]))`
       ),
-      queryInstant(`sum(rate(http_requests_total[2m]))`),
       queryInstant(
-        `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))`
+        `sum(rate(http_requests_total{namespace="${NAMESPACE}"}[2m]))`
       ),
-      queryInstant(`process_cpu_seconds_total{job="sample-app"}`),
-      queryInstant(`up{job="sample-app"}`),
+      queryInstant(
+        `histogram_quantile(0.95,
+          sum(rate(http_request_duration_seconds_bucket{namespace="${NAMESPACE}"}[5m])) by (le)
+        )`
+      ),
+      queryInstant(
+        `process_cpu_seconds_total{job="sample-app"}`
+      ),
+      queryInstant(
+        `up{namespace="${NAMESPACE}",pod=~"sample-app.*"}`
+      ),
+      // Total restarts across all sample-app containers — sourced from
+      // kube-state-metrics which kube-prometheus-stack installs by default.
+      queryInstant(
+        `sum(kube_pod_container_status_restarts_total{namespace="${NAMESPACE}",pod=~"sample-app.*"})`
+      ),
     ]);
 
   return {
@@ -40,6 +55,7 @@ export async function fetchMetricsSnapshot(): Promise<MetricsSnapshot> {
     p95Latency,
     cpuUsage,
     appUp: appUpRaw === 1,
+    restartCount,
     queriedAt: new Date().toISOString(),
   };
 }
