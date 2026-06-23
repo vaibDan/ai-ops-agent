@@ -44,18 +44,71 @@ The repository is structured as follows:
 
 ### Running on Kubernetes
 
-You can use the provided helper scripts to set up a local `kind` cluster and deploy the stack:
+Follow these steps to set up a local `kind` cluster and deploy the stack:
 
-1. Setup the cluster in kind:
+1. **Create the kind cluster**:
    ```bash
-   ./k8s/kind-config.yml
+   kind create cluster --config kind-config.yaml
+   kubectl cluster-info --context kind-ai-ops
    ```
-2. Verify the deployment:
+
+2. **Install Metrics Server**:
+   ```bash
+   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+   
+   kubectl patch deployment metrics-server -n kube-system \
+     --type='json' \
+     -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+     
+   kubectl rollout status deployment/metrics-server -n kube-system
+   ```
+
+3. **Install Prometheus via Helm**:
+   ```bash
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   helm repo update
+   
+   helm install monitoring prometheus-community/kube-prometheus-stack \
+     --namespace monitoring --create-namespace -f values.yml
+   ```
+
+4. **Build and Load Docker Images**:
+   ```bash
+   docker build -t sample-app:local ./sample-app
+   docker build -t ai-ops-agent:local ./agent
+   
+   kind load docker-image sample-app:local --name ai-ops
+   kind load docker-image ai-ops-agent:local --name ai-ops
+   ```
+
+5. **Create namespace first**:
+   ```bash
+   kubectl apply -f k8s/namespace.yaml
+   ```
+
+6. **Create secrets**:
+   ```bash
+   kubectl create secret generic ai-ops-secrets \
+     --from-literal=google-api-key=<your-google-api-key> \
+     --from-literal=openrouter-api-key=<your-openrouter-api-key> \
+     --from-literal=slack-webhook-url=<your-slack-webhook-url> \
+     --namespace ai-ops
+   ```
+
+7. **Apply all manifests**:
+   ```bash
+   kubectl apply -f k8s/sample-app/
+   kubectl apply -f k8s/agent/
+   kubectl apply -f k8s/monitoring/
+   ```
+
+8. **Verify the deployment**:
    ```bash
    ./scripts/verify-k8s.sh
    ```
-3. Trigger all alert:
-    ```bash
+
+9. **Trigger all alerts**:
+   ```bash
    ./scripts/test-alerts-k8s.sh
    ```
 
