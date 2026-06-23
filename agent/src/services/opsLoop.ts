@@ -47,6 +47,17 @@ async function processAlert(alert: Alert): Promise<void> {
   const alertName = alert.labels.alertname || "UnknownAlert";
   const cooldownKey = `${alertName}:${alert.labels.service || "unknown"}`;
 
+  // Layer 0 — severity guard
+  // Drop meta-alerts (severity=none) and named noise alerts before any
+  // processing. These should be filtered by Alertmanager routing but
+  // this is a safety net in case routing config changes.
+  const severity = alert.labels.severity ?? "";
+  const skipNames = ["InfoInhibitor", "Watchdog"];
+  if (severity === "none" || skipNames.includes(alertName)) {
+    logger.info("Dropping meta-alert — not actionable", { alertName, severity });
+    return;
+  }
+
   // Layer 1 — fingerprint dedup (same exact alert already running)
   if (inFlight.has(fingerprint)) {
     logger.info("Alert already in-flight, skipping", { fingerprint });

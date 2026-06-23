@@ -29,12 +29,24 @@ alertmanager:
       group_interval: 30s
       repeat_interval: 1h
       routes:
+        - receiver: "null"
+          matchers:
+            - severity = "none"
+          continue: false
+
+        - receiver: "null"
+          matchers:
+            - severity = "watchdog"
+          continue: false
+
+
         # Only alerts from our application namespace (ai-ops) go to the agent.
         # This is where your sample-app alert rules live (HighErrorRate,
         # HighCpuUsage, AppDown, HighLatency, ErrorSpike).
         - receiver: ai-ops-agent
           matchers:
             - namespace = "ai-ops"
+            - severity =~ "critical|warning"
           continue: false
     receivers:
       - name: "null"
