@@ -12,6 +12,8 @@ The AI Ops Agent is an automated, LLM-powered operations agent designed to auton
 
 ## Architecture & Components
 
+![alt text](docs/ai-ops-architecture.png)
+
 The repository is structured as follows:
 
 - `agent/`: The core NodeJS/Express application built with TypeScript. It exposes a webhook endpoint for Alertmanager and handles the observation-diagnosis-action-record loop.
